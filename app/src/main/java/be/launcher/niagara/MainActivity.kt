@@ -27,17 +27,32 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import be.launcher.niagara.ui.AppDrawer
+import be.launcher.niagara.ui.IconCache
+import be.launcher.niagara.ui.LetterBar
+import be.launcher.niagara.ui.STAR
+import be.launcher.niagara.ui.buildRows
+import be.launcher.niagara.ui.rowIndexForLetter
+import kotlinx.coroutines.launch
 import be.launcher.niagara.ui.HomeScreen
 
 class MainActivity : ComponentActivity() {
@@ -58,14 +73,27 @@ class MainActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current
             val store = remember { FavoritesStore(context) }
+            val settings = remember { LauncherSettings(context) }
             var apps by remember { mutableStateOf(AppRepository.load(context)) }
             var favorites by remember { mutableStateOf(store.load()) }
             var open by drawerOpen
+
+            val listState = rememberLazyListState()
+            var query by remember { mutableStateOf("") }
+            var activeLetter by remember { mutableStateOf<Char?>(null) }
+            val scope = rememberCoroutineScope()
+            val haptic = LocalHapticFeedback.current
+
+            val visibleApps = remember(apps, query) {
+                if (query.isBlank()) apps else apps.filter { it.label.contains(query.trim(), ignoreCase = true) }
+            }
+            val rows = remember(visibleApps, query) { buildRows(visibleApps, grouped = query.isBlank()) }
 
             // Lijst verversen als er apps worden (de)installeerd
             DisposableEffect(Unit) {
                 val receiver = object : BroadcastReceiver() {
                     override fun onReceive(c: Context, i: Intent) {
+                        IconCache.clear()
                         apps = AppRepository.load(context)
                     }
                 }
@@ -79,10 +107,26 @@ class MainActivity : ComponentActivity() {
                 onDispose { context.unregisterReceiver(receiver) }
             }
 
+            // Zoekopdracht wissen als de lijst dicht gaat
+            LaunchedEffect(open) { if (!open) query = "" }
+
             fun toggleFavorite(packageName: String) {
                 favorites = if (packageName in favorites) favorites - packageName
                 else favorites + packageName
                 store.save(favorites)
+            }
+
+            // De letterbalk werkt ook vanaf het startscherm: aanraken opent de lijst bij die letter
+            fun onLetter(letter: Char) {
+                if (letter != activeLetter) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                activeLetter = letter
+                if (letter == STAR) {
+                    open = false
+                    return
+                }
+                open = true
+                val index = rowIndexForLetter(rows, letter)
+                if (index >= 0) scope.launch { listState.scrollToItem(index) }
             }
 
             // Op het startscherm doet Terug niets, zoals bij een echte launcher
@@ -102,11 +146,13 @@ class MainActivity : ComponentActivity() {
             ) {
                 HomeScreen(
                     favorites = favorites.mapNotNull { pkg -> apps.firstOrNull { it.packageName == pkg } },
+                    settings = settings,
                     widgets = widgets,
                     listenerEnabled = listenerEnabled.value,
                     isDefaultLauncher = isDefaultLauncher.value,
                     onLaunch = { AppRepository.launch(context, it) },
                     onOpenDrawer = { open = true },
+                    onToggleFavorite = ::toggleFavorite,
                     onRequestNotificationAccess = this@MainActivity::requestNotificationAccess,
                     onRequestDefaultLauncher = this@MainActivity::requestDefaultLauncher,
                     modifier = Modifier.graphicsLayer {
@@ -124,13 +170,30 @@ class MainActivity : ComponentActivity() {
                         fadeOut(tween(260)),
                 ) {
                     AppDrawer(
-                        apps = apps,
+                        rows = rows,
+                        listState = listState,
+                        query = query,
+                        onQueryChange = { query = it },
                         favorites = favorites,
+                        showIcons = settings.showIcons,
                         onLaunch = {
                             AppRepository.launch(context, it)
                             open = false
                         },
                         onToggleFavorite = ::toggleFavorite,
+                    )
+                }
+
+                if (query.isBlank()) {
+                    LetterBar(
+                        activeLetter = activeLetter,
+                        onLetter = ::onLetter,
+                        onRelease = { activeLetter = null },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .safeDrawingPadding()
+                            .fillMaxHeight(0.62f)
+                            .padding(end = 4.dp),
                     )
                 }
             }

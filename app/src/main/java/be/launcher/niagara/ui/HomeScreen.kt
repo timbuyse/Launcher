@@ -5,9 +5,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,10 +39,12 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.launcher.niagara.AppEntry
+import be.launcher.niagara.LauncherSettings
 import be.launcher.niagara.NotificationHub
 import be.launcher.niagara.WidgetController
 import be.launcher.niagara.WidgetPickerDialog
@@ -52,18 +55,19 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val SWIPE_UP_THRESHOLD_PX = 120f
-private val SubtleText = Color(0xFFC7C7C7)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     favorites: List<AppEntry>,
+    settings: LauncherSettings,
     widgets: WidgetController,
     listenerEnabled: Boolean,
     isDefaultLauncher: Boolean,
     onLaunch: (AppEntry) -> Unit,
     onOpenDrawer: () -> Unit,
+    onToggleFavorite: (String) -> Unit,
     onRequestNotificationAccess: () -> Unit,
     onRequestDefaultLauncher: () -> Unit,
 ) {
@@ -80,14 +84,17 @@ fun HomeScreen(
         }
     }
     val locale = Locale.getDefault()
-    val time = now.format(DateTimeFormatter.ofPattern("HH:mm", locale))
-    val date = now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", locale))
+    val time = now.format(DateTimeFormatter.ofPattern("H:mm", locale))
+    val date = now.format(DateTimeFormatter.ofPattern("EEE, d MMM", locale))
+        .replaceFirstChar { it.uppercase(locale) }
+    val dateLine = if (settings.showBattery && battery != null) "$date   $battery%" else date
 
-    var menuOpen by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<AppEntry?>(null) }
     val counts = NotificationHub.counts
+    val previews = NotificationHub.previews
     val media = NotificationHub.media
-    val totalNotifications = counts.values.sum()
 
     Column(
         modifier = modifier
@@ -106,76 +113,17 @@ fun HomeScreen(
                     onDragCancel = { total = 0f },
                 ) { _, dy -> total += dy }
             }
-            .padding(horizontal = 32.dp, vertical = 24.dp),
+            .pointerInput(Unit) {
+                // Alleen op lege plekken: favorieten en widgets verwerken hun eigen aanrakingen
+                detectTapGestures(onLongPress = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    settingsOpen = true
+                })
+            }
+            .padding(start = 32.dp, end = 64.dp, top = 24.dp, bottom = 24.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Box {
-                Column(
-                    Modifier.combinedClickable(
-                        onClick = {},
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            menuOpen = true
-                        },
-                    ),
-                ) {
-                    Text(text = time, style = lightText(68.sp))
-                    Text(
-                        text = date.replaceFirstChar { it.uppercase(locale) },
-                        style = lightText(16.sp, SubtleText),
-                    )
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Widget toevoegen") },
-                        onClick = {
-                            menuOpen = false
-                            pickerOpen = true
-                        },
-                    )
-                    widgets.widgetIds.toList().forEach { id ->
-                        DropdownMenuItem(
-                            text = { Text("Verwijder: ${widgets.label(id)}") },
-                            onClick = {
-                                menuOpen = false
-                                widgets.remove(id)
-                            },
-                        )
-                    }
-                    if (!listenerEnabled) {
-                        DropdownMenuItem(
-                            text = { Text("Meldingstoegang geven") },
-                            onClick = {
-                                menuOpen = false
-                                onRequestNotificationAccess()
-                            },
-                        )
-                    }
-                    if (!isDefaultLauncher) {
-                        DropdownMenuItem(
-                            text = { Text("Standaard-launcher instellen") },
-                            onClick = {
-                                menuOpen = false
-                                onRequestDefaultLauncher()
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            // Klein infoblokje rechtsboven: batterij en aantal meldingen
-            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(top = 10.dp)) {
-                battery?.let { Text("$it%", style = lightText(16.sp, SubtleText)) }
-                if (listenerEnabled && totalNotifications > 0) {
-                    Text(
-                        text = if (totalNotifications == 1) "1 melding" else "$totalNotifications meldingen",
-                        style = lightText(14.sp, SubtleText),
-                    )
-                }
-            }
-        }
+        Text(text = time, style = lightText(64.sp, weight = FontWeight.Normal))
+        Text(text = dateLine, style = lightText(16.sp, SubtleText, FontWeight.Normal))
 
         // Widgets krijgen de ruimte tussen klok en favorieten en scrollen als ze samen te hoog worden
         val hasWidgets = widgets.widgetIds.isNotEmpty()
@@ -186,67 +134,99 @@ fun HomeScreen(
                 .then(if (hasWidgets) Modifier.verticalScroll(rememberScrollState()) else Modifier),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(12.dp))
             widgets.widgetIds.toList().forEach { id ->
                 key(id) { WidgetView(widgets, id) }
             }
         }
 
-        if (media != null) {
+        if (settings.showMedia && media != null) {
             MediaCard(media, Modifier.padding(bottom = 20.dp))
         }
 
         if (favorites.isEmpty()) {
             Text(
-                text = "Veeg omhoog en houd een app ingedrukt om hem hier te zetten.",
-                style = lightText(16.sp, SubtleText),
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth(),
+                text = "Veeg omhoog of trek aan de letters rechts en houd een app ingedrukt om hem hier te zetten.",
+                style = lightText(16.sp, SubtleText, FontWeight.Normal),
             )
         } else {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 favorites.forEach { app ->
-                    Row(
-                        modifier = Modifier
-                            .clickable { onLaunch(app) }
-                            .padding(vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val count = counts[app.packageName] ?: 0
-                        if (count > 0) {
-                            NotificationBadge(count)
-                            Spacer(Modifier.width(14.dp))
+                    Box {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = { onLaunch(app) },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        menuFor = app
+                                    },
+                                )
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (settings.showIcons) {
+                                AppIcon(app, 44.dp)
+                                Spacer(Modifier.width(20.dp))
+                            }
+                            Column {
+                                Text(
+                                    text = app.label,
+                                    style = lightText(22.sp, weight = FontWeight.Normal),
+                                    maxLines = 1,
+                                )
+                                val preview = previews[app.packageName]
+                                if (preview != null) {
+                                    Text(
+                                        text = preview,
+                                        style = lightText(13.sp, SubtleText, FontWeight.Normal),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
-                        Text(
-                            text = app.label,
-                            style = lightText(38.sp),
-                            maxLines = 1,
-                            textAlign = TextAlign.End,
-                        )
+                        DropdownMenu(expanded = menuFor == app, onDismissRequest = { menuFor = null }) {
+                            DropdownMenuItem(
+                                text = { Text("Van startscherm halen") },
+                                onClick = {
+                                    onToggleFavorite(app.packageName)
+                                    menuFor = null
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("App-info") },
+                                onClick = {
+                                    openAppInfo(context, app)
+                                    menuFor = null
+                                },
+                            )
+                        }
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
         if (!listenerEnabled) {
+            Spacer(Modifier.height(12.dp))
             Hint("Meldingen en muziek tonen: tik om toegang te geven", onRequestNotificationAccess)
         }
         if (!isDefaultLauncher) {
             Hint("Tik om Launcher je startscherm te maken", onRequestDefaultLauncher)
         }
-        Text(
-            text = "Alle apps",
-            style = lightText(16.sp, SubtleText),
-            textAlign = TextAlign.End,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpenDrawer)
-                .padding(vertical = 8.dp),
+    }
+
+    if (settingsOpen) {
+        HomeSettingsDialog(
+            settings = settings,
+            widgets = widgets,
+            listenerEnabled = listenerEnabled,
+            isDefaultLauncher = isDefaultLauncher,
+            onAddWidget = { pickerOpen = true },
+            onRequestNotificationAccess = onRequestNotificationAccess,
+            onRequestDefaultLauncher = onRequestDefaultLauncher,
+            onDismiss = { settingsOpen = false },
         )
     }
 
@@ -266,8 +246,7 @@ fun HomeScreen(
 private fun Hint(text: String, onClick: () -> Unit) {
     Text(
         text = text,
-        style = lightText(13.sp, Color(0xFFA0A0A0)),
-        textAlign = TextAlign.End,
+        style = lightText(13.sp, Color(0xFFA0A0A0), FontWeight.Normal),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)

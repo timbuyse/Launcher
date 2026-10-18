@@ -18,8 +18,12 @@ object NotificationHub {
     var counts by mutableStateOf<Map<String, Int>>(emptyMap())
     var media by mutableStateOf<MediaInfo?>(null)
 
+    /** Laatste melding per package als korte tekst (afzender en bericht). */
+    var previews by mutableStateOf<Map<String, String>>(emptyMap())
+
     fun clear() {
         counts = emptyMap()
+        previews = emptyMap()
         media = null
     }
 }

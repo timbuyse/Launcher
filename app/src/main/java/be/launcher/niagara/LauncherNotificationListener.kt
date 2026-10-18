@@ -104,10 +104,28 @@ class LauncherNotificationListener : NotificationListenerService() {
         } catch (_: Exception) {
             emptyList()
         }
-        val counts = active
-            .filter { !it.isOngoing && (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0 }
-            .groupingBy { it.packageName }
-            .eachCount()
-        main.post { NotificationHub.counts = counts }
+        val visible = active.filter {
+            !it.isOngoing && (it.notification.flags and Notification.FLAG_GROUP_SUMMARY) == 0
+        }
+        val counts = visible.groupingBy { it.packageName }.eachCount()
+        // Bij dubbele sleutels wint de laatste, dus de nieuwste melding
+        val previews = visible
+            .sortedBy { it.postTime }
+            .mapNotNull { sbn -> preview(sbn)?.let { sbn.packageName to it } }
+            .toMap()
+        main.post {
+            NotificationHub.counts = counts
+            NotificationHub.previews = previews
+        }
+    }
+
+    private fun preview(sbn: StatusBarNotification): String? {
+        val extras = sbn.notification.extras ?: return null
+        val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+        return listOfNotNull(title, text)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+            .ifBlank { null }
     }
 }

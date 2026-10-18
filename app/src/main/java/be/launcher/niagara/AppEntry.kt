@@ -11,6 +11,7 @@ data class AppEntry(
     val activityName: String,
 ) {
     val component: ComponentName get() = ComponentName(packageName, activityName)
+    val key: String get() = "$packageName/$activityName"
 
     /** Eerste letter in hoofdletters, of '#' voor alles wat geen letter is. */
     val letter: Char
