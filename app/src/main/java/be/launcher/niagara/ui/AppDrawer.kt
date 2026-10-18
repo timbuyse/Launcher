@@ -11,6 +11,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +51,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.launcher.niagara.AppEntry
+import be.launcher.niagara.NotificationHub
 import kotlinx.coroutines.launch
 
 private val LETTERS: List<Char> = ('A'..'Z').toList() + '#'
@@ -100,12 +104,7 @@ fun AppDrawer(
             ) {
                 items(visible, key = { it.packageName + "/" + it.activityName }) { app ->
                     Box {
-                        Text(
-                            text = app.label,
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Light,
-                            maxLines = 1,
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .combinedClickable(
@@ -113,7 +112,22 @@ fun AppDrawer(
                                     onLongClick = { menuFor = app },
                                 )
                                 .padding(start = 32.dp, end = 56.dp, top = 10.dp, bottom = 10.dp),
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = app.label,
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Light,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            val count = NotificationHub.counts[app.packageName] ?: 0
+                            if (count > 0) {
+                                Spacer(Modifier.width(12.dp))
+                                NotificationBadge(count)
+                            }
+                        }
                         DropdownMenu(
                             expanded = menuFor == app,
                             onDismissRequest = { menuFor = null },
