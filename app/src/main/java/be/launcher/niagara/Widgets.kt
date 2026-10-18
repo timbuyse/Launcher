@@ -21,8 +21,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,15 +38,31 @@ class WidgetController(private val activity: ComponentActivity) {
     val host = AppWidgetHost(activity, HOST_ID)
     val manager: AppWidgetManager = AppWidgetManager.getInstance(activity)
 
-    var widgetId by mutableIntStateOf(prefs.getInt(KEY_ID, NO_WIDGET))
-        private set
+    /** Alle widgets op het startscherm, in volgorde van toevoegen. */
+    val widgetIds = mutableStateListOf<Int>().apply { addAll(load()) }
 
     private var pendingId = NO_WIDGET
     private var pendingProvider: AppWidgetProviderInfo? = null
 
     init {
-        if (widgetId != NO_WIDGET && manager.getAppWidgetInfo(widgetId) == null) remove()
+        // Widgets waarvan de app is verwijderd opruimen
+        widgetIds.toList().filter { manager.getAppWidgetInfo(it) == null }.forEach { remove(it) }
     }
+
+    private fun load(): List<Int> {
+        val stored = prefs.getString(KEY_IDS, null)
+        if (stored != null) return stored.split(",").mapNotNull { it.toIntOrNull() }
+        // Eerste versie bewaarde maar één widget
+        val old = prefs.getInt(KEY_ID, NO_WIDGET)
+        return if (old != NO_WIDGET) listOf(old) else emptyList()
+    }
+
+    private fun save() {
+        prefs.edit().putString(KEY_IDS, widgetIds.joinToString(",")).remove(KEY_ID).apply()
+    }
+
+    fun label(id: Int): String =
+        manager.getAppWidgetInfo(id)?.loadLabel(activity.packageManager)?.toString() ?: "Widget"
 
     fun startListening() {
         runCatching { host.startListening() }
@@ -77,10 +92,10 @@ class WidgetController(private val activity: ComponentActivity) {
         }
     }
 
-    fun remove() {
-        if (widgetId != NO_WIDGET) host.deleteAppWidgetId(widgetId)
-        prefs.edit().remove(KEY_ID).apply()
-        widgetId = NO_WIDGET
+    fun remove(id: Int) {
+        host.deleteAppWidgetId(id)
+        widgetIds.remove(id)
+        save()
     }
 
     /** Geeft true terug als het resultaat bij deze controller hoorde. */
@@ -104,10 +119,8 @@ class WidgetController(private val activity: ComponentActivity) {
     }
 
     private fun commit(id: Int) {
-        val old = widgetId
-        if (old != NO_WIDGET && old != id) host.deleteAppWidgetId(old)
-        prefs.edit().putInt(KEY_ID, id).apply()
-        widgetId = id
+        if (id !in widgetIds) widgetIds.add(id)
+        save()
         pendingId = NO_WIDGET
         pendingProvider = null
     }
@@ -123,14 +136,13 @@ class WidgetController(private val activity: ComponentActivity) {
         const val REQ_CONFIGURE = 4002
         private const val HOST_ID = 1024
         private const val KEY_ID = "id"
+        private const val KEY_IDS = "ids"
         private const val NO_WIDGET = -1
     }
 }
 
 @Composable
-fun WidgetView(controller: WidgetController, modifier: Modifier = Modifier) {
-    val id = controller.widgetId
-    if (id == -1) return
+fun WidgetView(controller: WidgetController, id: Int, modifier: Modifier = Modifier) {
     val info = remember(id) { controller.manager.getAppWidgetInfo(id) } ?: return
     val density = LocalDensity.current
 

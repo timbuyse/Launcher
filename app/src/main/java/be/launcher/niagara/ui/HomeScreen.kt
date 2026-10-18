@@ -19,12 +19,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -124,18 +127,18 @@ fun HomeScreen(
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
-                        text = { Text(if (widgets.widgetId == -1) "Widget toevoegen" else "Widget vervangen") },
+                        text = { Text("Widget toevoegen") },
                         onClick = {
                             menuOpen = false
                             pickerOpen = true
                         },
                     )
-                    if (widgets.widgetId != -1) {
+                    widgets.widgetIds.toList().forEach { id ->
                         DropdownMenuItem(
-                            text = { Text("Widget verwijderen") },
+                            text = { Text("Verwijder: ${widgets.label(id)}") },
                             onClick = {
                                 menuOpen = false
-                                widgets.remove()
+                                widgets.remove(id)
                             },
                         )
                     }
@@ -174,9 +177,20 @@ fun HomeScreen(
             }
         }
 
-        WidgetView(widgets, Modifier.padding(top = 16.dp))
-
-        Spacer(Modifier.weight(1f))
+        // Widgets krijgen de ruimte tussen klok en favorieten en scrollen als ze samen te hoog worden
+        val hasWidgets = widgets.widgetIds.isNotEmpty()
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .then(if (hasWidgets) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Spacer(Modifier.height(4.dp))
+            widgets.widgetIds.toList().forEach { id ->
+                key(id) { WidgetView(widgets, id) }
+            }
+        }
 
         if (media != null) {
             MediaCard(media, Modifier.padding(bottom = 20.dp))
