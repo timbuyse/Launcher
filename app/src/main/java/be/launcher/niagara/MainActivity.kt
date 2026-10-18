@@ -18,6 +18,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -31,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import be.launcher.niagara.ui.AppDrawer
@@ -84,7 +88,18 @@ class MainActivity : ComponentActivity() {
             // Op het startscherm doet Terug niets, zoals bij een echte launcher
             BackHandler { open = false }
 
-            Box(Modifier.fillMaxSize().background(ComposeColor.Black)) {
+            // 0 = startscherm, 1 = app-lijst; stuurt de verduistering en het wegschuiven van het startscherm
+            val progress by animateFloatAsState(
+                targetValue = if (open) 1f else 0f,
+                animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+                label = "drawerProgress",
+            )
+
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(ComposeColor.Black.copy(alpha = 0.30f + 0.45f * progress)),
+            ) {
                 HomeScreen(
                     favorites = favorites.mapNotNull { pkg -> apps.firstOrNull { it.packageName == pkg } },
                     widgets = widgets,
@@ -94,11 +109,19 @@ class MainActivity : ComponentActivity() {
                     onOpenDrawer = { open = true },
                     onRequestNotificationAccess = this@MainActivity::requestNotificationAccess,
                     onRequestDefaultLauncher = this@MainActivity::requestDefaultLauncher,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = 1f - progress
+                        val scale = 1f - 0.06f * progress
+                        scaleX = scale
+                        scaleY = scale
+                    },
                 )
                 AnimatedVisibility(
                     visible = open,
-                    enter = slideInVertically { it / 3 } + fadeIn(),
-                    exit = slideOutVertically { it / 3 } + fadeOut(),
+                    enter = slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it / 4 } +
+                        fadeIn(tween(320)),
+                    exit = slideOutVertically(tween(260, easing = FastOutSlowInEasing)) { it / 4 } +
+                        fadeOut(tween(260)),
                 ) {
                     AppDrawer(
                         apps = apps,

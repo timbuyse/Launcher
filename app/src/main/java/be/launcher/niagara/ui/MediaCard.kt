@@ -15,7 +15,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.launcher.niagara.MediaInfo
@@ -27,15 +26,9 @@ fun MediaCard(info: MediaInfo, modifier: Modifier = Modifier) {
     val controls = info.controller.transportControls
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(
-                info.title,
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Light,
-                maxLines = 1,
-            )
+            Text(info.title, style = lightText(18.sp), maxLines = 1)
             if (info.artist.isNotBlank()) {
-                Text(info.artist, color = Color(0xFF9E9E9E), fontSize = 14.sp, maxLines = 1)
+                Text(info.artist, style = lightText(14.sp, Color(0xFFC7C7C7)), maxLines = 1)
             }
         }
         MediaButton(MediaIcon.Previous) { controls.skipToPrevious() }

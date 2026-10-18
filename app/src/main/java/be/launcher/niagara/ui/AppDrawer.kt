@@ -4,27 +4,29 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -34,27 +36,35 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.launcher.niagara.AppEntry
 import be.launcher.niagara.NotificationHub
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 private val LETTERS: List<Char> = ('A'..'Z').toList() + '#'
+private val SubtleText = Color(0xFFC7C7C7)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -70,6 +80,7 @@ fun AppDrawer(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
 
     val visible = remember(apps, query) {
         if (query.isBlank()) apps
@@ -78,6 +89,7 @@ fun AppDrawer(
     val searching = query.isNotBlank()
 
     fun scrollToLetter(letter: Char) {
+        if (letter != activeLetter) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         activeLetter = letter
         // Zoek de eerste app met deze letter, of anders de eerstvolgende
         val start = LETTERS.indexOf(letter)
@@ -90,7 +102,8 @@ fun AppDrawer(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            // Voorkomt dat aanrakingen op lege plekken het startscherm eronder bereiken
+            .pointerInput(Unit) { detectTapGestures { } }
             .safeDrawingPadding()
             .imePadding(),
     ) {
@@ -100,7 +113,6 @@ fun AppDrawer(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                reverseLayout = false,
             ) {
                 items(visible, key = { it.packageName + "/" + it.activityName }) { app ->
                     Box {
@@ -109,24 +121,27 @@ fun AppDrawer(
                                 .fillMaxWidth()
                                 .combinedClickable(
                                     onClick = { onLaunch(app) },
-                                    onLongClick = { menuFor = app },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        menuFor = app
+                                    },
                                 )
-                                .padding(start = 32.dp, end = 56.dp, top = 10.dp, bottom = 10.dp),
+                                .padding(start = 32.dp, end = 72.dp, top = 9.dp, bottom = 9.dp),
+                            horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(
-                                text = app.label,
-                                color = Color.White,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Light,
-                                maxLines = 1,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
                             val count = NotificationHub.counts[app.packageName] ?: 0
                             if (count > 0) {
-                                Spacer(Modifier.width(12.dp))
                                 NotificationBadge(count)
+                                Spacer(Modifier.width(12.dp))
                             }
+                            Text(
+                                text = app.label,
+                                style = lightText(28.sp),
+                                maxLines = 1,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
                         }
                         DropdownMenu(
                             expanded = menuFor == app,
@@ -163,7 +178,7 @@ fun AppDrawer(
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
-                textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
+                textStyle = lightText(18.sp),
                 cursorBrush = SolidColor(Color.White),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = {
@@ -172,7 +187,7 @@ fun AppDrawer(
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (query.isEmpty()) {
-                            Text("Zoeken", color = Color(0xFF757575), fontSize = 18.sp)
+                            Text("Zoeken", style = lightText(18.sp, Color(0xFFA0A0A0)))
                         }
                         inner()
                     }
@@ -180,9 +195,9 @@ fun AppDrawer(
                 modifier = Modifier
                     .padding(horizontal = 32.dp, vertical = 12.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF1C1C1C))
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0x66000000))
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
             )
         }
 
@@ -196,22 +211,13 @@ fun AppDrawer(
                     .padding(bottom = 72.dp),
             )
         }
-
-        activeLetter?.let { letter ->
-            Box(
-                Modifier
-                    .align(Alignment.Center)
-                    .size(96.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xCC303030)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(letter.toString(), color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Light)
-            }
-        }
     }
 }
 
+/**
+ * Letterbalk met golf-effect: letters bij je vinger schuiven naar links en worden groter,
+ * hoe verder weg hoe minder.
+ */
 @Composable
 private fun LetterBar(
     activeLetter: Char?,
@@ -219,40 +225,62 @@ private fun LetterBar(
     onRelease: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    fun letterAt(y: Float, height: Int): Char {
+    val currentOnLetter by rememberUpdatedState(onLetter)
+    val currentOnRelease by rememberUpdatedState(onRelease)
+    var touchY by remember { mutableFloatStateOf(0f) }
+    var barHeight by remember { mutableIntStateOf(1) }
+    val strengthState = animateFloatAsState(
+        targetValue = if (activeLetter != null) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "letterWave",
+    )
+
+    fun touch(y: Float, height: Int) {
+        touchY = y
         val i = (y / height * LETTERS.size).toInt().coerceIn(0, LETTERS.lastIndex)
-        return LETTERS[i]
+        currentOnLetter(LETTERS[i])
     }
 
     Column(
         modifier = modifier
             .fillMaxHeight(0.8f)
-            .padding(end = 4.dp)
+            .onSizeChanged { barHeight = it.height.coerceAtLeast(1) }
             .pointerInput(Unit) {
-                detectTapGestures(
-                    onPress = { offset ->
-                        onLetter(letterAt(offset.y, size.height))
-                        tryAwaitRelease()
-                        onRelease()
-                    },
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    down.consume()
+                    touch(down.position.y, size.height)
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (change.pressed) {
+                            change.consume()
+                            touch(change.position.y, size.height)
+                        }
+                    } while (event.changes.any { it.pressed })
+                    currentOnRelease()
+                }
             }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { offset -> onLetter(letterAt(offset.y, size.height)) },
-                    onDragEnd = onRelease,
-                    onDragCancel = onRelease,
-                ) { change, _ -> onLetter(letterAt(change.position.y, size.height)) }
-            }
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 14.dp),
     ) {
-        LETTERS.forEach { letter ->
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+        LETTERS.forEachIndexed { index, letter ->
+            Box(
+                Modifier
+                    .weight(1f)
+                    .graphicsLayer {
+                        val slot = barHeight.toFloat() / LETTERS.size
+                        val center = (index + 0.5f) * slot
+                        val closeness = (1f - abs(touchY - center) / (slot * 3.5f)).coerceAtLeast(0f)
+                        val wave = closeness * closeness * strengthState.value
+                        translationX = -wave * 56.dp.toPx()
+                        scaleX = 1f + wave * 0.9f
+                        scaleY = 1f + wave * 0.9f
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
                     text = letter.toString(),
-                    color = if (letter == activeLetter) Color.White else Color(0xFF9E9E9E),
-                    fontSize = 11.sp,
-                    fontWeight = if (letter == activeLetter) FontWeight.Bold else FontWeight.Normal,
+                    style = lightText(12.sp, if (letter == activeLetter) Color.White else SubtleText),
                 )
             }
         }
