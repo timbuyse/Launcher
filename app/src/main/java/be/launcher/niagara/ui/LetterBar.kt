@@ -1,6 +1,8 @@
 package be.launcher.niagara.ui
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -33,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.roundToInt
 
 const val STAR = '☆'
@@ -42,8 +44,8 @@ const val STAR = '☆'
 val BAR_LETTERS: List<Char> = listOf(STAR, '#') + ('A'..'Z')
 
 /**
- * Verticale letterbalk met golf-effect: letters rond je vinger buigen ver naar links weg en
- * worden groter, met een rond bolletje met de letter naast je vinger.
+ * Verticale letterbalk met golf-effect: de hele balk buigt in een brede, zachte boog naar links,
+ * met de grootste uitwijking bij je vinger, en een rond bolletje met de letter ernaast.
  */
 @Composable
 fun LetterBar(
@@ -58,6 +60,12 @@ fun LetterBar(
     var barHeight by remember { mutableIntStateOf(1) }
     var shownLetter by remember { mutableStateOf('A') }
     SideEffect { if (activeLetter != null) shownLetter = activeLetter }
+    // De boog volgt je vinger met een lichte veer, zodat hij zacht meegolft
+    val waveY = animateFloatAsState(
+        targetValue = touchY,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
+        label = "waveY",
+    )
     val strengthState = animateFloatAsState(
         targetValue = if (activeLetter != null) 1f else 0f,
         animationSpec = tween(durationMillis = 200),
@@ -98,22 +106,24 @@ fun LetterBar(
                     Modifier
                         .weight(1f)
                         .graphicsLayer {
+                            // Brede, zachte klokvorm: grootste uitwijking bij je vinger, bijna nul aan de uiteinden
                             val slot = barHeight.toFloat() / BAR_LETTERS.size
                             val center = (index + 0.5f) * slot
-                            val closeness = (1f - abs(touchY - center) / (slot * 7f)).coerceAtLeast(0f)
-                            val wave = closeness * closeness * strengthState.value
-                            translationX = -wave * 120.dp.toPx()
-                            scaleX = 1f + wave * 0.7f
-                            scaleY = 1f + wave * 0.7f
+                            val distance = waveY.value - center
+                            val sigma = barHeight * 0.28f
+                            val wave = exp(-(distance * distance) / (sigma * sigma)) * strengthState.value
+                            translationX = -wave * 64.dp.toPx()
+                            scaleX = 1f + wave * 0.1f
+                            scaleY = 1f + wave * 0.1f
                         },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = letter.toString(),
                         style = lightText(
-                            size = 12.sp,
-                            color = if (letter == activeLetter) Color.White else SubtleText,
-                            weight = if (letter == activeLetter) FontWeight.Medium else FontWeight.Normal,
+                            size = 15.sp,
+                            color = Color.White,
+                            weight = FontWeight.Medium,
                         ),
                     )
                 }
@@ -123,7 +133,7 @@ fun LetterBar(
         // Bolletje met de gekozen letter, links van je vinger
         Box(
             Modifier
-                .offset { IntOffset(-(150.dp.roundToPx()), (touchY - 24.dp.toPx()).roundToInt()) }
+                .offset { IntOffset(-(110.dp.roundToPx()), (touchY - 24.dp.toPx()).roundToInt()) }
                 .graphicsLayer { alpha = strengthState.value }
                 .size(48.dp)
                 .clip(CircleShape)
