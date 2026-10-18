@@ -29,6 +29,7 @@ fun HomeSettingsDialog(
     listenerEnabled: Boolean,
     isDefaultLauncher: Boolean,
     onAddWidget: () -> Unit,
+    onEditFavorites: () -> Unit,
     onRequestNotificationAccess: () -> Unit,
     onRequestDefaultLauncher: () -> Unit,
     onDismiss: () -> Unit,
@@ -45,6 +46,10 @@ fun HomeSettingsDialog(
                 SwitchRow("Muziek tonen als er iets speelt", settings.showMedia, settings::updateShowMedia)
                 SwitchRow("App-iconen tonen", settings.showIcons, settings::updateShowIcons)
 
+                ActionRow("Favorieten bewerken") {
+                    onDismiss()
+                    onEditFavorites()
+                }
                 ActionRow("Widget toevoegen") {
                     onDismiss()
                     onAddWidget()

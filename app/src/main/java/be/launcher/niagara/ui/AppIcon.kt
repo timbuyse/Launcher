@@ -27,6 +27,10 @@ object IconCache {
 
     fun get(key: String): ImageBitmap? = cache.get(key)
 
+    fun put(key: String, value: ImageBitmap) {
+        cache.put(key, value)
+    }
+
     fun clear() = cache.evictAll()
 
     suspend fun load(context: Context, app: AppEntry): ImageBitmap? = withContext(Dispatchers.Default) {
@@ -35,6 +39,25 @@ object IconCache {
                 .toBitmap(ICON_PX, ICON_PX)
                 .asImageBitmap()
         }.getOrNull()?.also { cache.put(app.key, it) }
+    }
+}
+
+suspend fun IconCache.loadPackage(context: Context, packageName: String): ImageBitmap? =
+    withContext(Dispatchers.Default) {
+        val key = "pkg:$packageName"
+        get(key) ?: runCatching {
+            context.packageManager.getApplicationIcon(packageName).toBitmap(108, 108).asImageBitmap()
+        }.getOrNull()?.also { put(key, it) }
+    }
+
+@Composable
+fun PackageIcon(packageName: String, size: Dp, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap by produceState(IconCache.get("pkg:$packageName"), packageName) {
+        if (value == null) value = IconCache.loadPackage(context, packageName)
+    }
+    Box(modifier.size(size).clip(CircleShape)) {
+        bitmap?.let { Image(bitmap = it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
     }
 }
 

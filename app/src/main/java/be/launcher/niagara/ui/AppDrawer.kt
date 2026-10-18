@@ -2,6 +2,7 @@ package be.launcher.niagara.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -12,19 +13,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,11 +37,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -82,14 +88,14 @@ fun AppDrawer(
     listState: LazyListState,
     query: String,
     onQueryChange: (String) -> Unit,
-    favorites: List<String>,
     showIcons: Boolean,
     onLaunch: (AppEntry) -> Unit,
-    onToggleFavorite: (String) -> Unit,
+    onAppMenu: (AppEntry) -> Unit,
 ) {
-    var menuFor by remember { mutableStateOf<AppEntry?>(null) }
-    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    var searchOpen by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(searchOpen) { if (searchOpen) focusRequester.requestFocus() }
 
     Box(
         Modifier
@@ -124,62 +130,33 @@ fun AppDrawer(
 
                         is DrawerRow.App -> {
                             val app = row.app
-                            Box {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .combinedClickable(
-                                            onClick = { onLaunch(app) },
-                                            onLongClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                menuFor = app
-                                            },
-                                        )
-                                        .padding(start = 32.dp, end = 72.dp, top = 8.dp, bottom = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    if (showIcons) {
-                                        AppIcon(app, 40.dp)
-                                        Spacer(Modifier.width(20.dp))
-                                    }
-                                    Text(
-                                        text = app.label,
-                                        style = lightText(20.sp, weight = FontWeight.Normal),
-                                        maxLines = 1,
-                                        modifier = Modifier.weight(1f, fill = false),
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = { onLaunch(app) },
+                                        onLongClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            onAppMenu(app)
+                                        },
                                     )
-                                    val count = NotificationHub.counts[app.packageName] ?: 0
-                                    if (count > 0) {
-                                        Spacer(Modifier.width(12.dp))
-                                        NotificationBadge(count)
-                                    }
+                                    .padding(start = 32.dp, end = 72.dp, top = 8.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (showIcons) {
+                                    AppIcon(app, 40.dp)
+                                    Spacer(Modifier.width(20.dp))
                                 }
-                                DropdownMenu(
-                                    expanded = menuFor == app,
-                                    onDismissRequest = { menuFor = null },
-                                ) {
-                                    val isFav = app.packageName in favorites
-                                    DropdownMenuItem(
-                                        text = { Text(if (isFav) "Van startscherm halen" else "Op startscherm zetten") },
-                                        onClick = {
-                                            onToggleFavorite(app.packageName)
-                                            menuFor = null
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("App-info") },
-                                        onClick = {
-                                            openAppInfo(context, app)
-                                            menuFor = null
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Verwijderen") },
-                                        onClick = {
-                                            uninstallApp(context, app)
-                                            menuFor = null
-                                        },
-                                    )
+                                Text(
+                                    text = app.label,
+                                    style = lightText(20.sp, weight = FontWeight.Normal),
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                val count = NotificationHub.counts[app.packageName] ?: 0
+                                if (count > 0) {
+                                    Spacer(Modifier.width(12.dp))
+                                    NotificationBadge(count)
                                 }
                             }
                         }
@@ -187,7 +164,7 @@ fun AppDrawer(
                 }
             }
 
-            BasicTextField(
+            if (searchOpen) BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
@@ -206,12 +183,28 @@ fun AppDrawer(
                     }
                 },
                 modifier = Modifier
+                    .focusRequester(focusRequester)
                     .padding(horizontal = 32.dp, vertical = 12.dp)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(28.dp))
                     .background(Color(0x66000000))
                     .padding(horizontal = 22.dp, vertical = 14.dp),
             )
+        }
+
+        if (!searchOpen) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 76.dp, bottom = 24.dp)
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x66A9C7CF))
+                    .clickable { searchOpen = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.Search, contentDescription = "Zoeken", tint = Color.White)
+            }
         }
     }
 }

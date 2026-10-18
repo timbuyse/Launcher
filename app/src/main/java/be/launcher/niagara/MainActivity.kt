@@ -47,7 +47,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
+import be.launcher.niagara.ui.AppActionsSheet
 import be.launcher.niagara.ui.AppDrawer
+import be.launcher.niagara.ui.FavoritesEditor
+import be.launcher.niagara.ui.HomeSettingsDialog
+import be.launcher.niagara.ui.WidgetPicker
 import be.launcher.niagara.ui.IconCache
 import be.launcher.niagara.ui.LetterBar
 import be.launcher.niagara.ui.STAR
@@ -78,6 +82,11 @@ class MainActivity : ComponentActivity() {
             var apps by remember { mutableStateOf(AppRepository.load(context)) }
             var favorites by remember { mutableStateOf(store.load()) }
             var open by drawerOpen
+
+            var sheetApp by remember { mutableStateOf<AppEntry?>(null) }
+            var editingFavorites by remember { mutableStateOf(false) }
+            var pickerOpen by remember { mutableStateOf(false) }
+            var settingsOpen by remember { mutableStateOf(false) }
 
             val listState = rememberLazyListState()
             var query by remember { mutableStateOf("") }
@@ -117,6 +126,14 @@ class MainActivity : ComponentActivity() {
                 store.save(favorites)
             }
 
+            fun moveFavorite(from: Int, to: Int) {
+                favorites = favorites.toMutableList().also { list ->
+                    val item = list.removeAt(from)
+                    list.add(to, item)
+                }
+                store.save(favorites)
+            }
+
             // De letterbalk werkt ook vanaf het startscherm: aanraken opent de lijst bij die letter
             fun onLetter(letter: Char) {
                 if (letter != activeLetter) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -127,7 +144,11 @@ class MainActivity : ComponentActivity() {
                 }
                 open = true
                 val index = rowIndexForLetter(rows, letter)
-                if (index >= 0) scope.launch { listState.scrollToItem(index) }
+                if (index >= 0) {
+                    // Kopje van de letter komt op ongeveer 30% van de hoogte te staan
+                    val offset = -(listState.layoutInfo.viewportSize.height * 0.3f).toInt()
+                    scope.launch { listState.scrollToItem(index, offset) }
+                }
             }
 
             // Op het startscherm doet Terug niets, zoals bij een echte launcher
@@ -153,7 +174,9 @@ class MainActivity : ComponentActivity() {
                     isDefaultLauncher = isDefaultLauncher.value,
                     onLaunch = { AppRepository.launch(context, it) },
                     onOpenDrawer = { open = true },
-                    onToggleFavorite = ::toggleFavorite,
+                    onAppMenu = { sheetApp = it },
+                    onOpenSettings = { settingsOpen = true },
+                    onEditFavorites = { editingFavorites = true },
                     onRequestNotificationAccess = this@MainActivity::requestNotificationAccess,
                     onRequestDefaultLauncher = this@MainActivity::requestDefaultLauncher,
                     modifier = Modifier.graphicsLayer {
@@ -175,17 +198,16 @@ class MainActivity : ComponentActivity() {
                         listState = listState,
                         query = query,
                         onQueryChange = { query = it },
-                        favorites = favorites,
                         showIcons = settings.showIcons,
                         onLaunch = {
                             AppRepository.launch(context, it)
                             open = false
                         },
-                        onToggleFavorite = ::toggleFavorite,
+                        onAppMenu = { sheetApp = it },
                     )
                 }
 
-                if (query.isBlank()) {
+                if (query.isBlank() && !editingFavorites && !pickerOpen) {
                     LetterBar(
                         activeLetter = activeLetter,
                         onLetter = ::onLetter,
@@ -197,6 +219,51 @@ class MainActivity : ComponentActivity() {
                             .padding(end = 4.dp),
                     )
                 }
+
+                if (editingFavorites) {
+                    FavoritesEditor(
+                        apps = apps,
+                        favorites = favorites,
+                        onToggle = ::toggleFavorite,
+                        onMove = ::moveFavorite,
+                        onDone = { editingFavorites = false },
+                    )
+                }
+
+                if (pickerOpen) {
+                    WidgetPicker(
+                        providers = remember { widgets.providers() },
+                        onPick = {
+                            pickerOpen = false
+                            widgets.add(it)
+                        },
+                        onDismiss = { pickerOpen = false },
+                    )
+                }
+            }
+
+            if (settingsOpen) {
+                HomeSettingsDialog(
+                    settings = settings,
+                    widgets = widgets,
+                    listenerEnabled = listenerEnabled.value,
+                    isDefaultLauncher = isDefaultLauncher.value,
+                    onAddWidget = { pickerOpen = true },
+                    onEditFavorites = { editingFavorites = true },
+                    onRequestNotificationAccess = this@MainActivity::requestNotificationAccess,
+                    onRequestDefaultLauncher = this@MainActivity::requestDefaultLauncher,
+                    onDismiss = { settingsOpen = false },
+                )
+            }
+
+            sheetApp?.let { app ->
+                AppActionsSheet(
+                    app = app,
+                    isFavorite = app.packageName in favorites,
+                    onToggleFavorite = { toggleFavorite(app.packageName) },
+                    onOpenSettings = { settingsOpen = true },
+                    onDismiss = { sheetApp = null },
+                )
             }
         }
     }

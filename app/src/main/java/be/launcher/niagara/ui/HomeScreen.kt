@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,7 +45,6 @@ import be.launcher.niagara.AppEntry
 import be.launcher.niagara.LauncherSettings
 import be.launcher.niagara.NotificationHub
 import be.launcher.niagara.WidgetController
-import be.launcher.niagara.WidgetPickerDialog
 import be.launcher.niagara.WidgetView
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
@@ -67,7 +64,9 @@ fun HomeScreen(
     isDefaultLauncher: Boolean,
     onLaunch: (AppEntry) -> Unit,
     onOpenDrawer: () -> Unit,
-    onToggleFavorite: (String) -> Unit,
+    onAppMenu: (AppEntry) -> Unit,
+    onOpenSettings: () -> Unit,
+    onEditFavorites: () -> Unit,
     onRequestNotificationAccess: () -> Unit,
     onRequestDefaultLauncher: () -> Unit,
 ) {
@@ -89,9 +88,6 @@ fun HomeScreen(
         .replaceFirstChar { it.uppercase(locale) }
     val dateLine = if (settings.showBattery && battery != null) "$date   $battery%" else date
 
-    var settingsOpen by remember { mutableStateOf(false) }
-    var pickerOpen by remember { mutableStateOf(false) }
-    var menuFor by remember { mutableStateOf<AppEntry?>(null) }
     val counts = NotificationHub.counts
     val previews = NotificationHub.previews
     val media = NotificationHub.media
@@ -117,7 +113,7 @@ fun HomeScreen(
                 // Alleen op lege plekken: favorieten en widgets verwerken hun eigen aanrakingen
                 detectTapGestures(onLongPress = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    settingsOpen = true
+                    onOpenSettings()
                 })
             }
             .padding(start = 32.dp, end = 64.dp, top = 24.dp, bottom = 24.dp),
@@ -146,62 +142,45 @@ fun HomeScreen(
 
         if (favorites.isEmpty()) {
             Text(
-                text = "Veeg omhoog of trek aan de letters rechts en houd een app ingedrukt om hem hier te zetten.",
+                text = "Tik hier om je favorieten te kiezen, of trek aan de letters rechts en houd een app ingedrukt.",
                 style = lightText(16.sp, SubtleText, FontWeight.Normal),
+                modifier = Modifier.clickable(onClick = onEditFavorites),
             )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 favorites.forEach { app ->
-                    Box {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = { onLaunch(app) },
-                                    onLongClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        menuFor = app
-                                    },
-                                )
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (settings.showIcons) {
-                                AppIcon(app, 44.dp)
-                                Spacer(Modifier.width(20.dp))
-                            }
-                            Column {
-                                Text(
-                                    text = app.label,
-                                    style = lightText(22.sp, weight = FontWeight.Normal),
-                                    maxLines = 1,
-                                )
-                                val preview = previews[app.packageName]
-                                if (preview != null) {
-                                    Text(
-                                        text = preview,
-                                        style = lightText(13.sp, SubtleText, FontWeight.Normal),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { onLaunch(app) },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onAppMenu(app)
+                                },
+                            )
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (settings.showIcons) {
+                            AppIcon(app, 44.dp)
+                            Spacer(Modifier.width(20.dp))
                         }
-                        DropdownMenu(expanded = menuFor == app, onDismissRequest = { menuFor = null }) {
-                            DropdownMenuItem(
-                                text = { Text("Van startscherm halen") },
-                                onClick = {
-                                    onToggleFavorite(app.packageName)
-                                    menuFor = null
-                                },
+                        Column {
+                            Text(
+                                text = app.label,
+                                style = lightText(22.sp, weight = FontWeight.Normal),
+                                maxLines = 1,
                             )
-                            DropdownMenuItem(
-                                text = { Text("App-info") },
-                                onClick = {
-                                    openAppInfo(context, app)
-                                    menuFor = null
-                                },
-                            )
+                            val preview = previews[app.packageName]
+                            if (preview != null) {
+                                Text(
+                                    text = preview,
+                                    style = lightText(13.sp, SubtleText, FontWeight.Normal),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }
@@ -215,30 +194,6 @@ fun HomeScreen(
         if (!isDefaultLauncher) {
             Hint("Tik om Launcher je startscherm te maken", onRequestDefaultLauncher)
         }
-    }
-
-    if (settingsOpen) {
-        HomeSettingsDialog(
-            settings = settings,
-            widgets = widgets,
-            listenerEnabled = listenerEnabled,
-            isDefaultLauncher = isDefaultLauncher,
-            onAddWidget = { pickerOpen = true },
-            onRequestNotificationAccess = onRequestNotificationAccess,
-            onRequestDefaultLauncher = onRequestDefaultLauncher,
-            onDismiss = { settingsOpen = false },
-        )
-    }
-
-    if (pickerOpen) {
-        WidgetPickerDialog(
-            providers = remember { widgets.providers() },
-            onPick = {
-                pickerOpen = false
-                widgets.add(it)
-            },
-            onDismiss = { pickerOpen = false },
-        )
     }
 }
 
