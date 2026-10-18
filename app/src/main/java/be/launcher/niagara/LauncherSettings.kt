@@ -16,6 +16,14 @@ class LauncherSettings(context: Context) {
     var showIcons by mutableStateOf(prefs.getBoolean(KEY_ICONS, true))
         private set
 
+    var clockStyle by mutableStateOf(prefs.getInt(KEY_CLOCK, 0))
+        private set
+
+    fun updateClockStyle(value: Int) {
+        clockStyle = value
+        prefs.edit().putInt(KEY_CLOCK, value).apply()
+    }
+
     fun updateShowBattery(value: Boolean) {
         showBattery = value
         prefs.edit().putBoolean(KEY_BATTERY, value).apply()
@@ -35,5 +43,6 @@ class LauncherSettings(context: Context) {
         const val KEY_BATTERY = "battery"
         const val KEY_MEDIA = "media"
         const val KEY_ICONS = "icons"
+        const val KEY_CLOCK = "clock_style"
     }
 }

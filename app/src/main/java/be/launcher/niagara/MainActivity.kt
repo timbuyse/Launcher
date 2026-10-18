@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -49,8 +50,10 @@ import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.platform.LocalContext
 import be.launcher.niagara.ui.AppActionsSheet
 import be.launcher.niagara.ui.AppDrawer
+import be.launcher.niagara.ui.ClockStylePicker
 import be.launcher.niagara.ui.FavoritesEditor
-import be.launcher.niagara.ui.HomeSettingsDialog
+import be.launcher.niagara.ui.HomeSettingsSheet
+import be.launcher.niagara.ui.NotificationAccessSheet
 import be.launcher.niagara.ui.WidgetPicker
 import be.launcher.niagara.ui.IconCache
 import be.launcher.niagara.ui.LetterBar
@@ -87,6 +90,9 @@ class MainActivity : ComponentActivity() {
             var editingFavorites by remember { mutableStateOf(false) }
             var pickerOpen by remember { mutableStateOf(false) }
             var settingsOpen by remember { mutableStateOf(false) }
+            var clockPickerOpen by remember { mutableStateOf(false) }
+            // null = dicht, 0 = uitleg, 1 = hulp bij beperkte instellingen
+            var notificationSheet by remember { mutableStateOf<Int?>(null) }
 
             val listState = rememberLazyListState()
             var query by remember { mutableStateOf("") }
@@ -116,6 +122,9 @@ class MainActivity : ComponentActivity() {
                 ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
                 onDispose { context.unregisterReceiver(receiver) }
             }
+
+            // Uitleg sluiten zodra meldingstoegang aan staat
+            LaunchedEffect(listenerEnabled.value) { if (listenerEnabled.value) notificationSheet = null }
 
             // Zoekopdracht wissen als de lijst dicht gaat
             LaunchedEffect(open) { if (!open) query = "" }
@@ -177,7 +186,7 @@ class MainActivity : ComponentActivity() {
                     onAppMenu = { sheetApp = it },
                     onOpenSettings = { settingsOpen = true },
                     onEditFavorites = { editingFavorites = true },
-                    onRequestNotificationAccess = this@MainActivity::requestNotificationAccess,
+                    onRequestNotificationAccess = { notificationSheet = 0 },
                     onRequestDefaultLauncher = this@MainActivity::requestDefaultLauncher,
                     modifier = Modifier.graphicsLayer {
                         alpha = 1f - progress
@@ -207,7 +216,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                if (query.isBlank() && !editingFavorites && !pickerOpen) {
+                if (query.isBlank() && !editingFavorites && !pickerOpen && !clockPickerOpen) {
                     LetterBar(
                         activeLetter = activeLetter,
                         onLetter = ::onLetter,
@@ -230,6 +239,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                if (clockPickerOpen) {
+                    ClockStylePicker(
+                        current = settings.clockStyle,
+                        onPick = { settings.updateClockStyle(it) },
+                        onDone = { clockPickerOpen = false },
+                    )
+                }
+
                 if (pickerOpen) {
                     WidgetPicker(
                         providers = remember { widgets.providers() },
@@ -243,16 +260,37 @@ class MainActivity : ComponentActivity() {
             }
 
             if (settingsOpen) {
-                HomeSettingsDialog(
+                HomeSettingsSheet(
                     settings = settings,
                     widgets = widgets,
                     listenerEnabled = listenerEnabled.value,
                     isDefaultLauncher = isDefaultLauncher.value,
+                    onOpenClockStyle = { clockPickerOpen = true },
                     onAddWidget = { pickerOpen = true },
                     onEditFavorites = { editingFavorites = true },
-                    onRequestNotificationAccess = this@MainActivity::requestNotificationAccess,
+                    onRequestNotificationAccess = { notificationSheet = 0 },
                     onRequestDefaultLauncher = this@MainActivity::requestDefaultLauncher,
                     onDismiss = { settingsOpen = false },
+                )
+            }
+
+            notificationSheet?.let { stage ->
+                NotificationAccessSheet(
+                    stage = stage,
+                    onEnable = {
+                        requestNotificationAccess()
+                        notificationSheet = 1
+                    },
+                    onOpenAppInfo = {
+                        runCatching {
+                            startActivity(
+                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                    .setData(Uri.fromParts("package", packageName, null)),
+                            )
+                        }
+                    },
+                    onRetry = { requestNotificationAccess() },
+                    onDismiss = { notificationSheet = null },
                 )
             }
 

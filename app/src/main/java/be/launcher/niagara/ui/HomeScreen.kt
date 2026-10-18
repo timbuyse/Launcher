@@ -19,7 +19,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -118,7 +128,7 @@ fun HomeScreen(
             }
             .padding(start = 32.dp, end = 64.dp, top = 24.dp, bottom = 24.dp),
     ) {
-        Text(text = time, style = lightText(64.sp, weight = FontWeight.Normal))
+        Text(text = time, style = ClockStyle.fromId(settings.clockStyle).textStyle(64.sp))
         Text(text = dateLine, style = lightText(16.sp, SubtleText, FontWeight.Normal))
 
         // Widgets krijgen de ruimte tussen klok en favorieten en scrollen als ze samen te hoog worden
@@ -131,6 +141,22 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(Modifier.height(12.dp))
+            if (!isDefaultLauncher) {
+                HintCard(
+                    icon = Icons.Outlined.Home,
+                    text = "Launcher instellen als startscherm?",
+                    action = "Als startscherm instellen",
+                    onClick = onRequestDefaultLauncher,
+                )
+            }
+            if (!listenerEnabled) {
+                HintCard(
+                    icon = Icons.Outlined.Notifications,
+                    text = "Zie meldingen en muziek direct op je startscherm",
+                    action = "Inschakelen",
+                    onClick = onRequestNotificationAccess,
+                )
+            }
             widgets.widgetIds.toList().forEach { id ->
                 key(id) { WidgetView(widgets, id) }
             }
@@ -186,27 +212,35 @@ fun HomeScreen(
                 }
             }
         }
-
-        if (!listenerEnabled) {
-            Spacer(Modifier.height(12.dp))
-            Hint("Meldingen en muziek tonen: tik om toegang te geven", onRequestNotificationAccess)
-        }
-        if (!isDefaultLauncher) {
-            Hint("Tik om Launcher je startscherm te maken", onRequestDefaultLauncher)
-        }
-    }
 }
 
 @Composable
-private fun Hint(text: String, onClick: () -> Unit) {
-    Text(
-        text = text,
-        style = lightText(13.sp, Color(0xFFA0A0A0), FontWeight.Normal),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
-    )
+private fun HintCard(icon: ImageVector, text: String, action: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF8FD3F4)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = Color(0xFF05303F))
+        }
+        Spacer(Modifier.width(20.dp))
+        Column(Modifier.weight(1f)) {
+            Text(text, style = lightText(17.sp, weight = FontWeight.Normal))
+            Text(
+                text = action,
+                style = lightText(17.sp, weight = FontWeight.Normal)
+                    .copy(textDecoration = TextDecoration.Underline),
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick)
+                    .padding(top = 10.dp, bottom = 4.dp),
+            )
+        }
+    }
 }
 
 private fun batteryPercent(context: Context): Int? {
