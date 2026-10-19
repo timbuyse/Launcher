@@ -15,7 +15,24 @@ android {
         versionName = "0.1.0"
     }
 
+    // In CI komt de ondertekeningssleutel uit de cache (zie .github/workflows/build.yml).
+    // Lokaal valt het terug op de standaard debug-sleutel van Android Studio.
+    val ciKeystore = System.getenv("LAUNCHER_KEYSTORE")
+    if (ciKeystore != null && file(ciKeystore).exists()) {
+        signingConfigs {
+            create("launcher") {
+                storeFile = file(ciKeystore)
+                storePassword = "android"
+                keyAlias = "launcher"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfigs.findByName("launcher")?.let { signingConfig = it }
+        }
         release {
             isMinifyEnabled = false
             // Debug-sleutel zodat de release-APK direct installeerbaar is

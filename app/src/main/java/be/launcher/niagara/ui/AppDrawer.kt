@@ -43,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -56,12 +55,28 @@ sealed interface DrawerRow {
     data class App(val app: AppEntry) : DrawerRow
 }
 
-/** Zet de apps in rijen, met een letterkopje per groep (niet tijdens het zoeken). */
-fun buildRows(apps: List<AppEntry>, grouped: Boolean): List<DrawerRow> {
-    if (!grouped) return apps.map { DrawerRow.App(it) }
-    val rows = ArrayList<DrawerRow>(apps.size + 27)
+/**
+ * Zet de apps in rijen, met een letterkopje per groep (niet tijdens het zoeken).
+ * Binnen een letter staan de meest gebruikte apps bovenaan als [byUsage] aan staat.
+ */
+fun buildRows(
+    apps: List<AppEntry>,
+    grouped: Boolean,
+    counts: Map<String, Int> = emptyMap(),
+    byUsage: Boolean = false,
+): List<DrawerRow> {
+    fun used(app: AppEntry) = if (byUsage) -(counts[app.key] ?: 0) else 0
+    if (!grouped) {
+        val ordered = if (byUsage) apps.sortedWith(compareBy<AppEntry>({ used(it) }, { it.label.lowercase() })) else apps
+        return ordered.map { DrawerRow.App(it) }
+    }
+    // Eén reeks per letter, ook voor symbolen en niet-Latijnse letters (#), zodat kopjes uniek blijven
+    val sorted = apps.sortedWith(
+        compareBy<AppEntry>({ BAR_LETTERS.indexOf(it.letter) }, { used(it) }, { it.label.lowercase() }),
+    )
+    val rows = ArrayList<DrawerRow>(sorted.size + 27)
     var current: Char? = null
-    for (app in apps) {
+    for (app in sorted) {
         if (app.letter != current) {
             current = app.letter
             rows += DrawerRow.Header(app.letter)
@@ -92,7 +107,7 @@ fun AppDrawer(
     onLaunch: (AppEntry) -> Unit,
     onAppMenu: (AppEntry) -> Unit,
 ) {
-    val haptic = LocalHapticFeedback.current
+    val buzz = rememberHaptics()
     var searchOpen by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(searchOpen) { if (searchOpen) focusRequester.requestFocus() }
@@ -136,7 +151,7 @@ fun AppDrawer(
                                     .combinedClickable(
                                         onClick = { onLaunch(app) },
                                         onLongClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            buzz(HapticFeedbackType.LongPress)
                                             onAppMenu(app)
                                         },
                                     )

@@ -20,6 +20,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.roundToInt
 
@@ -53,8 +55,11 @@ fun LetterBar(
     onLetter: (Char) -> Unit,
     onRelease: () -> Unit,
     modifier: Modifier = Modifier,
+    onDoubleTap: (() -> Unit)? = null,
 ) {
     val currentOnLetter by rememberUpdatedState(onLetter)
+    val currentOnDoubleTap by rememberUpdatedState(onDoubleTap)
+    var lastTapUp by remember { mutableLongStateOf(0L) }
     val currentOnRelease by rememberUpdatedState(onRelease)
     var touchY by remember { mutableFloatStateOf(0f) }
     var barHeight by remember { mutableIntStateOf(1) }
@@ -87,15 +92,33 @@ fun LetterBar(
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         down.consume()
+
+                        // Twee korte tikken achter elkaar: dubbeltik (bijvoorbeeld om te vergrendelen)
+                        val doubleTap = currentOnDoubleTap
+                        if (doubleTap != null && down.uptimeMillis - lastTapUp < 350L) {
+                            lastTapUp = 0L
+                            doubleTap()
+                            do {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                            return@awaitEachGesture
+                        }
+
                         touch(down.position.y, size.height)
+                        var moved = false
+                        var lastUp = down.uptimeMillis
                         do {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull() ?: break
                             if (change.pressed) {
                                 change.consume()
+                                if (abs(change.position.y - down.position.y) > 24f) moved = true
                                 touch(change.position.y, size.height)
                             }
+                            lastUp = change.uptimeMillis
                         } while (event.changes.any { it.pressed })
+                        lastTapUp = if (moved) 0L else lastUp
                         currentOnRelease()
                     }
                 }

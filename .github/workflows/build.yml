@@ -1,9 +1,10 @@
 name: Build APK
 
+# Alleen op push (en handmatig): de handtekening-sleutel zit in de cache van deze branch.
+# Bij een pull_request-run zou dat een aparte cache en dus een andere handtekening geven.
 on:
   push:
     branches: ["**"]
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -17,12 +18,34 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Vaste ondertekeningssleutel, bewaard in de GitHub-cache zodat elke build over de
+      # vorige heen te installeren is. De sleutel wordt in CI gemaakt en staat niet in de repo.
+      # Let op: GitHub ruimt caches op na 7 dagen zonder gebruik, dan krijg je een nieuwe sleutel.
+      - name: Sleutel uit cache halen
+        id: keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/launcher.keystore
+          key: launcher-keystore-v1
+
+      - name: Sleutel maken (alleen als er nog geen is)
+        if: steps.keystore.outputs.cache-hit != 'true'
+        run: >
+          keytool -genkeypair -keystore "$HOME/launcher.keystore"
+          -storepass android -keypass android -alias launcher
+          -keyalg RSA -keysize 2048 -validity 36500
+          -dname "CN=Launcher, O=Personal"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --no-daemon
+        env:
+          LAUNCHER_KEYSTORE: ${{ github.workspace }}/../launcher.keystore
+        run: |
+          cp "$HOME/launcher.keystore" "$LAUNCHER_KEYSTORE"
+          gradle :app:assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:

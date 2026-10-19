@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Info
@@ -64,6 +65,7 @@ fun HomeSettingsSheet(
     onEditFavorites: () -> Unit,
     onRequestNotificationAccess: () -> Unit,
     onRequestDefaultLauncher: () -> Unit,
+    onOpenAllSettings: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -130,6 +132,10 @@ fun HomeSettingsSheet(
             ) {
                 onDismiss()
                 onRequestNotificationAccess()
+            }
+            ChevronCard({ SheetIcon(Icons.Outlined.Settings) }, "Alle instellingen") {
+                onDismiss()
+                onOpenAllSettings()
             }
             if (!isDefaultLauncher) {
                 ChevronCard({ SheetIcon(Icons.Outlined.Home) }, "Standaard-launcher instellen") {

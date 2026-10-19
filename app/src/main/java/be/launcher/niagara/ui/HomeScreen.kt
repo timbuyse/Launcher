@@ -47,7 +47,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,6 +68,7 @@ private const val SWIPE_UP_THRESHOLD_PX = 120f
 fun HomeScreen(
     modifier: Modifier = Modifier,
     favorites: List<AppEntry>,
+    frequent: List<AppEntry>,
     settings: LauncherSettings,
     widgets: WidgetController,
     listenerEnabled: Boolean,
@@ -82,7 +82,7 @@ fun HomeScreen(
     onRequestDefaultLauncher: () -> Unit,
 ) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
+    val buzz = rememberHaptics()
 
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     var battery by remember { mutableStateOf(batteryPercent(context)) }
@@ -113,7 +113,7 @@ fun HomeScreen(
                     onDragStart = { total = 0f },
                     onDragEnd = {
                         if (total < -SWIPE_UP_THRESHOLD_PX) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            buzz(HapticFeedbackType.TextHandleMove)
                             onOpenDrawer()
                         }
                     },
@@ -123,7 +123,7 @@ fun HomeScreen(
             .pointerInput(Unit) {
                 // Alleen op lege plekken: favorieten en widgets verwerken hun eigen aanrakingen
                 detectTapGestures(onLongPress = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    buzz(HapticFeedbackType.LongPress)
                     onOpenSettings()
                 })
             }
@@ -182,7 +182,7 @@ fun HomeScreen(
                             .combinedClickable(
                                 onClick = { onLaunch(app) },
                                 onLongClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    buzz(HapticFeedbackType.LongPress)
                                     onAppMenu(app)
                                 },
                             )
@@ -209,6 +209,29 @@ fun HomeScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        if (frequent.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Text("Vaak gebruikt", style = lightText(13.sp, SubtleText, FontWeight.Normal))
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                frequent.forEach { app ->
+                    Column(
+                        Modifier.clickable { onLaunch(app) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        AppIcon(app, 44.dp)
+                        Text(
+                            text = app.label,
+                            style = lightText(11.sp, SubtleText, FontWeight.Normal),
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.width(64.dp).padding(top = 4.dp),
+                        )
                     }
                 }
             }

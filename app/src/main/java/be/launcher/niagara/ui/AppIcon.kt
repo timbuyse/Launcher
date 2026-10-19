@@ -56,8 +56,16 @@ fun PackageIcon(packageName: String, size: Dp, modifier: Modifier = Modifier) {
     val bitmap by produceState(IconCache.get("pkg:$packageName"), packageName) {
         if (value == null) value = IconCache.loadPackage(context, packageName)
     }
-    Box(modifier.size(size).clip(CircleShape)) {
-        bitmap?.let { Image(bitmap = it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+    val style = LocalIconStyle.current
+    Box(modifier.size(size).clip(iconShapeFor(style.shape))) {
+        bitmap?.let {
+            Image(
+                bitmap = it,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                colorFilter = if (style.gray) GrayFilter else null,
+            )
+        }
     }
 }
 
@@ -67,7 +75,15 @@ fun AppIcon(app: AppEntry, size: Dp, modifier: Modifier = Modifier) {
     val bitmap by produceState(IconCache.get(app.key), app.key) {
         if (value == null) value = IconCache.load(context, app)
     }
-    Box(modifier.size(size).clip(CircleShape)) {
-        bitmap?.let { Image(bitmap = it, contentDescription = null, modifier = Modifier.fillMaxSize()) }
+    val style = LocalIconStyle.current
+    Box(modifier.size(size).clip(iconShapeFor(style.shape))) {
+        bitmap?.let {
+            Image(
+                bitmap = it,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                colorFilter = if (style.gray) GrayFilter else null,
+            )
+        }
     }
 }
