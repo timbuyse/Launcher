@@ -33,6 +33,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -82,7 +83,20 @@ fun HomeSettingsSheet(
                 .padding(horizontal = 24.dp)
                 .padding(top = 32.dp, bottom = 24.dp),
         ) {
-            Text("Launcher", style = lightText(32.sp, SheetTextColor), modifier = Modifier.padding(bottom = 16.dp))
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val version = remember {
+                runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
+            }
+            Text("Launcher", style = lightText(32.sp, SheetTextColor))
+            if (version != null) {
+                Text(
+                    "Versie $version",
+                    style = lightText(14.sp, Color(0xFF9FB6C2)),
+                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+                )
+            } else {
+                Spacer(Modifier.height(16.dp))
+            }
 
             ChevronCard({ ClockIcon() }, "Klok stijl") {
                 onDismiss()

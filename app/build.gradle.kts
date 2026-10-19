@@ -11,8 +11,10 @@ android {
         applicationId = "be.launcher.niagara"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        // In CI telt het versienummer mee met de buildnummer, zodat je in de app ziet welke build je hebt
+        val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = buildNumber
+        versionName = "0.2.$buildNumber"
     }
 
     // In CI komt de ondertekeningssleutel uit de cache (zie .github/workflows/build.yml).
