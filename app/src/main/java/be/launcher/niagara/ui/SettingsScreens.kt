@@ -64,12 +64,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.launcher.niagara.AppEntry
+import be.launcher.niagara.LauncherBackgrounds
 import be.launcher.niagara.LauncherSettings
 import be.launcher.niagara.PRESET_THEMES
 import be.launcher.niagara.WidgetController
 import kotlin.math.roundToInt
 
-enum class SettingsPage { HOME, PRODUCTIVITY, THEMES, APPEARANCE, ICON_SHAPES, HIDE_APPS, ADVANCED }
+enum class SettingsPage { HOME, PRODUCTIVITY, THEMES, APPEARANCE, ICON_SHAPES, BACKGROUNDS, HIDE_APPS, ADVANCED }
 
 /** Wat de instellingenpagina's van de activity nodig hebben. */
 class SettingsActions(
@@ -80,6 +81,7 @@ class SettingsActions(
     val onDefaultLauncher: () -> Unit,
     val onQuickLockChanged: (Boolean) -> Unit,
     val onRestart: () -> Unit,
+    val onPickBackground: () -> Unit,
 )
 
 private val ScreenBackground = Color(0xFF02171E)
@@ -119,6 +121,7 @@ fun SettingsScreen(
                     SettingsPage.THEMES -> ThemesPage(settings, onNavigate)
                     SettingsPage.APPEARANCE -> AppearancePage(settings, onNavigate, actions)
                     SettingsPage.ICON_SHAPES -> IconShapesPage(settings)
+                    SettingsPage.BACKGROUNDS -> BackgroundsPage(settings, actions)
                     SettingsPage.ADVANCED -> AdvancedPage(isDefaultLauncher, actions)
                     SettingsPage.HIDE_APPS -> Unit
                 }
@@ -227,7 +230,8 @@ private fun ThemesPage(settings: LauncherSettings, onNavigate: (SettingsPage) ->
     SectionLabel("Kant-en-klare thema's")
     PRESET_THEMES.forEach { theme ->
         val active = settings.dim == theme.dim && settings.clockStyle == theme.clockStyle &&
-            settings.iconShape == theme.iconShape && settings.grayIcons == theme.grayIcons
+            settings.iconShape == theme.iconShape && settings.grayIcons == theme.grayIcons &&
+            settings.background == theme.background
         SettingRow(
             icon = if (active) Icons.Outlined.Check else null,
             title = theme.name,
@@ -247,6 +251,9 @@ private fun AppearancePage(settings: LauncherSettings, onNavigate: (SettingsPage
     SettingRow(
         Icons.Outlined.Star, "App pictogrammen", ICON_SHAPE_NAMES.getOrElse(settings.iconShape) { "Cirkel" },
     ) { onNavigate(SettingsPage.ICON_SHAPES) }
+    SettingRow(
+        Icons.Outlined.Home, "Achtergrond", LauncherBackgrounds.names.getOrElse(settings.background) { "Donker verloop" },
+    ) { onNavigate(SettingsPage.BACKGROUNDS) }
     SettingSwitch(
         Icons.Outlined.Home, "App-iconen tonen", "Zet uit voor een lijst met alleen tekst",
         settings.showIcons, settings::updateShowIcons,
@@ -303,6 +310,54 @@ private fun IconShapesPage(settings: LauncherSettings) {
         Icons.Outlined.Info, "Grijstinten", "Toon alle iconen zonder kleur",
         settings.grayIcons, settings::updateGrayIcons,
     )
+}
+
+@Composable
+private fun BackgroundsPage(settings: LauncherSettings, actions: SettingsActions) {
+    PageTitle("Achtergrond")
+    LauncherBackgrounds.names.forEachIndexed { index, name ->
+        val isCustom = index == LauncherBackgrounds.CUSTOM
+        val isSystem = index == LauncherBackgrounds.SYSTEM
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 4.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(CardBackground)
+                .clickable {
+                    if (isCustom) actions.onPickBackground() else settings.updateBackground(index)
+                }
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val swatchColors = LauncherBackgrounds.colors(index)
+                ?: if (isSystem) listOf(Color(0xFF7BC6CC), Color(0xFFBE93C5)) else listOf(Color(0xFF3B4650), Color(0xFF1C2229))
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(androidx.compose.ui.graphics.Brush.verticalGradient(swatchColors)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isCustom) Icon(Icons.Outlined.Add, contentDescription = null, tint = Color.White)
+            }
+            Spacer(Modifier.width(24.dp))
+            Column(Modifier.weight(1f)) {
+                Text(name, style = lightText(20.sp, Ink))
+                val hint = when {
+                    isSystem -> "De wallpaper van je telefoon"
+                    isCustom -> "Kies een foto uit je galerij"
+                    else -> null
+                }
+                if (hint != null) Text(hint, style = lightText(14.sp, Muted, FontWeight.Normal))
+            }
+            RadioButton(
+                selected = settings.background == index,
+                onClick = { if (isCustom) actions.onPickBackground() else settings.updateBackground(index) },
+                colors = RadioButtonDefaults.colors(selectedColor = Accent, unselectedColor = Muted),
+            )
+        }
+    }
 }
 
 @Composable

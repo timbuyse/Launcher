@@ -40,8 +40,22 @@ class LauncherSettings(context: Context) {
         private set
     var grayIcons by mutableStateOf(prefs.getBoolean(KEY_GRAY, false))
         private set
-    var dim by mutableStateOf(prefs.getFloat(KEY_DIM, 0.30f))
+    var dim by mutableStateOf(prefs.getFloat(KEY_DIM, 0.15f))
         private set
+    var background by mutableStateOf(prefs.getInt(KEY_BACKGROUND, 0))
+        private set
+    var backgroundVersion by mutableStateOf(0)
+        private set
+
+    fun updateBackground(value: Int) {
+        background = value
+        prefs.edit().putInt(KEY_BACKGROUND, value).apply()
+    }
+
+    /** Laat de eigen foto opnieuw inlezen na het kiezen van een nieuwe. */
+    fun bumpBackgroundVersion() {
+        backgroundVersion += 1
+    }
 
     fun toggleHidden(key: String) {
         hiddenApps = if (key in hiddenApps) hiddenApps - key else hiddenApps + key
@@ -93,6 +107,7 @@ class LauncherSettings(context: Context) {
         updateClockStyle(theme.clockStyle)
         updateIconShape(theme.iconShape)
         updateGrayIcons(theme.grayIcons)
+        updateBackground(theme.background)
     }
 
     fun updateShowBattery(value: Boolean) {
@@ -124,5 +139,6 @@ class LauncherSettings(context: Context) {
         const val KEY_ICON_SHAPE = "icon_shape"
         const val KEY_GRAY = "gray_icons"
         const val KEY_DIM = "dim"
+        const val KEY_BACKGROUND = "background"
     }
 }

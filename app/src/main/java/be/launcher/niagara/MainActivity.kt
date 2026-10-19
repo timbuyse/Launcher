@@ -16,7 +16,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -57,6 +59,7 @@ import be.launcher.niagara.ui.FavoritesEditor
 import be.launcher.niagara.ui.HomeScreen
 import be.launcher.niagara.ui.HomeSettingsSheet
 import be.launcher.niagara.ui.IconCache
+import be.launcher.niagara.ui.LauncherBackground
 import be.launcher.niagara.ui.IconStyle
 import be.launcher.niagara.ui.LetterBar
 import be.launcher.niagara.ui.LocalHapticsEnabled
@@ -111,6 +114,20 @@ class MainActivity : ComponentActivity() {
             var activeLetter by remember { mutableStateOf<Char?>(null) }
             val scope = rememberCoroutineScope()
             val haptic = LocalHapticFeedback.current
+
+            // Eigen foto als achtergrond kiezen via de ingebouwde fotokiezer (geen rechten nodig)
+            val pickBackground = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) {
+                    scope.launch {
+                        if (LauncherBackgrounds.importCustom(context, uri)) {
+                            settings.bumpBackgroundVersion()
+                            settings.updateBackground(LauncherBackgrounds.CUSTOM)
+                        } else {
+                            Toast.makeText(context, "Die foto kon niet worden gebruikt", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
 
             // Verborgen apps staan niet in de lijst, maar je kunt ze nog wel als favoriet hebben
             val hidden = settings.hiddenApps
@@ -234,17 +251,20 @@ class MainActivity : ComponentActivity() {
                 onDefaultLauncher = this@MainActivity::requestDefaultLauncher,
                 onQuickLockChanged = ::changeQuickLock,
                 onRestart = { recreate() },
+                onPickBackground = { pickBackground.launch("image/*") },
             )
 
             CompositionLocalProvider(
                 LocalHapticsEnabled provides settings.haptics,
                 LocalIconStyle provides IconStyle(settings.iconShape, settings.grayIcons),
             ) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(ComposeColor.Black.copy(alpha = (settings.dim + 0.45f * progress).coerceAtMost(0.95f))),
-                ) {
+                Box(Modifier.fillMaxSize()) {
+                    LauncherBackground(settings, Modifier.fillMaxSize())
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(ComposeColor.Black.copy(alpha = (settings.dim + 0.45f * progress).coerceAtMost(0.95f))),
+                    )
                     HomeScreen(
                         favorites = favoriteApps,
                         frequent = frequent,

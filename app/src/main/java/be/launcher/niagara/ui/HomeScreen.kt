@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -102,8 +103,9 @@ fun HomeScreen(
     val counts = NotificationHub.counts
     val previews = NotificationHub.previews
     val media = NotificationHub.media
+    val hasWidgets = widgets.widgetIds.isNotEmpty()
 
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .safeDrawingPadding()
@@ -126,112 +128,119 @@ fun HomeScreen(
                     buzz(HapticFeedbackType.LongPress)
                     onOpenSettings()
                 })
-            }
-            .padding(start = 32.dp, end = 64.dp, top = 24.dp, bottom = 24.dp),
+            },
     ) {
-        Text(text = time, style = ClockStyle.fromId(settings.clockStyle).textStyle(64.sp))
-        Text(text = dateLine, style = lightText(16.sp, SubtleText, FontWeight.Normal))
+        // De klok staat standaard een flink eind onder de bovenkant, de favorieten hangen eronder.
+        // Alleen als er widgets zijn scrolt de inhoud, anders zou dat het omhoogvegen blokkeren.
+        val topGap = maxHeight * 0.2f
 
-        // Widgets krijgen de ruimte tussen klok en favorieten en scrollen als ze samen te hoog worden
-        val hasWidgets = widgets.widgetIds.isNotEmpty()
         Column(
             Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .then(if (hasWidgets) Modifier.verticalScroll(rememberScrollState()) else Modifier),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .fillMaxSize()
+                .then(if (hasWidgets) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(start = 32.dp, end = 64.dp, bottom = 24.dp),
         ) {
-            Spacer(Modifier.height(12.dp))
-            if (!isDefaultLauncher) {
-                HintCard(
-                    icon = Icons.Outlined.Home,
-                    text = "Launcher instellen als startscherm?",
-                    action = "Als startscherm instellen",
-                    onClick = onRequestDefaultLauncher,
-                )
-            }
-            if (!listenerEnabled) {
-                HintCard(
-                    icon = Icons.Outlined.Notifications,
-                    text = "Zie meldingen en muziek direct op je startscherm",
-                    action = "Inschakelen",
-                    onClick = onRequestNotificationAccess,
-                )
-            }
-            widgets.widgetIds.toList().forEach { id ->
-                key(id) { WidgetView(widgets, id) }
-            }
-        }
+            Spacer(Modifier.height(topGap))
+            Text(text = time, style = ClockStyle.fromId(settings.clockStyle).textStyle(56.sp))
+            Text(text = dateLine, style = lightText(15.sp, SubtleText, FontWeight.Normal))
 
-        if (settings.showMedia && media != null) {
-            MediaCard(media, Modifier.padding(bottom = 20.dp))
-        }
+            Column(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (!isDefaultLauncher) {
+                    HintCard(
+                        icon = Icons.Outlined.Home,
+                        text = "Launcher instellen als startscherm?",
+                        action = "Als startscherm instellen",
+                        onClick = onRequestDefaultLauncher,
+                    )
+                }
+                if (!listenerEnabled) {
+                    HintCard(
+                        icon = Icons.Outlined.Notifications,
+                        text = "Zie meldingen en muziek direct op je startscherm",
+                        action = "Inschakelen",
+                        onClick = onRequestNotificationAccess,
+                    )
+                }
+                widgets.widgetIds.toList().forEach { id ->
+                    key(id) { WidgetView(widgets, id) }
+                }
+            }
 
-        if (favorites.isEmpty()) {
-            Text(
-                text = "Tik hier om je favorieten te kiezen, of trek aan de letters rechts en houd een app ingedrukt.",
-                style = lightText(16.sp, SubtleText, FontWeight.Normal),
-                modifier = Modifier.clickable(onClick = onEditFavorites),
-            )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                favorites.forEach { app ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = { onLaunch(app) },
-                                onLongClick = {
-                                    buzz(HapticFeedbackType.LongPress)
-                                    onAppMenu(app)
-                                },
-                            )
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (settings.showIcons) {
-                            AppIcon(app, 44.dp)
-                            Spacer(Modifier.width(20.dp))
-                        }
-                        Column {
-                            Text(
-                                text = app.label,
-                                style = lightText(22.sp, weight = FontWeight.Normal),
-                                maxLines = 1,
-                            )
-                            val preview = previews[app.packageName]
-                            if (preview != null) {
-                                Text(
-                                    text = preview,
-                                    style = lightText(13.sp, SubtleText, FontWeight.Normal),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+            Spacer(Modifier.height(16.dp))
+
+            if (settings.showMedia && media != null) {
+                MediaCard(media, Modifier.padding(bottom = 16.dp))
+            }
+
+            if (favorites.isEmpty()) {
+                Text(
+                    text = "Tik hier om je favorieten te kiezen, of trek aan de letters rechts en houd een app ingedrukt.",
+                    style = lightText(15.sp, SubtleText, FontWeight.Normal),
+                    modifier = Modifier.clickable(onClick = onEditFavorites),
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    favorites.forEach { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = { onLaunch(app) },
+                                    onLongClick = {
+                                        buzz(HapticFeedbackType.LongPress)
+                                        onAppMenu(app)
+                                    },
                                 )
+                                .padding(vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (settings.showIcons) {
+                                AppIcon(app, 38.dp)
+                                Spacer(Modifier.width(18.dp))
+                            }
+                            Column {
+                                Text(
+                                    text = app.label,
+                                    style = lightText(18.sp, weight = FontWeight.Normal),
+                                    maxLines = 1,
+                                )
+                                val preview = previews[app.packageName]
+                                if (preview != null) {
+                                    Text(
+                                        text = preview,
+                                        style = lightText(12.sp, SubtleText, FontWeight.Normal),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        if (frequent.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            Text("Vaak gebruikt", style = lightText(13.sp, SubtleText, FontWeight.Normal))
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                frequent.forEach { app ->
-                    Column(
-                        Modifier.clickable { onLaunch(app) },
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        AppIcon(app, 44.dp)
-                        Text(
-                            text = app.label,
-                            style = lightText(11.sp, SubtleText, FontWeight.Normal),
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.width(64.dp).padding(top = 4.dp),
-                        )
+            if (frequent.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text("Vaak gebruikt", style = lightText(13.sp, SubtleText, FontWeight.Normal))
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    frequent.forEach { app ->
+                        Column(
+                            Modifier.clickable { onLaunch(app) },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            AppIcon(app, 40.dp)
+                            Text(
+                                text = app.label,
+                                style = lightText(11.sp, SubtleText, FontWeight.Normal),
+                                maxLines = 1,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.width(64.dp).padding(top = 4.dp),
+                            )
+                        }
                     }
                 }
             }
