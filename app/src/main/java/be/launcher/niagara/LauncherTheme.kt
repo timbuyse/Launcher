@@ -18,4 +18,5 @@ val PRESET_THEMES = listOf(
     LauncherTheme("Zacht", "Afgeronde vierkante iconen op zonsondergang", 0.15f, 0, 1, false, 3),
     LauncherTheme("Retro", "Monospace klok, grijze iconen op zwart", 0.20f, 5, 2, true, 4),
     LauncherTheme("Editie", "Serif klok op middernacht", 0.15f, 4, 1, false, 2),
+    LauncherTheme("Omtrek", "Grote omtrek-weekdag met lijntekening-iconen", 0.05f, 7, 3, false, 0),
 )

@@ -19,7 +19,12 @@ enum class ClockStyle(
     ITALIC(Outfit, FontWeight.Normal, italic = true),
     SERIF(FontFamily.Serif, FontWeight.Normal),
     MONO(FontFamily.Monospace, FontWeight.Medium),
-    HANDWRITTEN(FontFamily.Cursive, FontWeight.Normal);
+    HANDWRITTEN(FontFamily.Cursive, FontWeight.Normal),
+
+    /** Grote weekdag als omtrek met de tijd, datum en batterij in kleine tekst erdoorheen. */
+    OUTLINE(Outfit, FontWeight.Light);
+
+    val isOutline: Boolean get() = this == OUTLINE
 
     fun textStyle(size: TextUnit, color: Color = Color.White) = TextStyle(
         color = color,

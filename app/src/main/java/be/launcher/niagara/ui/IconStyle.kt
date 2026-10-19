@@ -12,7 +12,10 @@ data class IconStyle(val shape: Int = 0, val gray: Boolean = false)
 
 val LocalIconStyle = compositionLocalOf { IconStyle() }
 
-val ICON_SHAPE_NAMES = listOf("Cirkel", "Afgerond vierkant", "Vierkant")
+/** Id van de lijntekening-stijl: de omtrek van het icoon in wit, zonder vulling. */
+const val ICON_SHAPE_OUTLINE = 3
+
+val ICON_SHAPE_NAMES = listOf("Cirkel", "Afgerond vierkant", "Vierkant", "Omtrek (lijntekening)")
 
 fun iconShapeFor(id: Int): Shape = when (id) {
     1 -> RoundedCornerShape(percent = 28)

@@ -75,9 +75,20 @@ fun ClockStylePicker(
                             .then(if (index == current) Modifier.border(3.dp, Color.White, shape) else Modifier)
                             .clickable { onPick(index) },
                     ) {
-                        Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
-                            Text("16:00", style = style.textStyle(38.sp))
-                            Text("do 30 aug  100%", style = lightText(13.sp, Color.White, FontWeight.Normal))
+                        if (style.isOutline) {
+                            OutlineClock(
+                                weekday = "DO",
+                                time = "16:00",
+                                date = "30 AUG",
+                                battery = "100%",
+                                scale = 0.34f,
+                                modifier = Modifier.align(Alignment.Center),
+                            )
+                        } else {
+                            Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
+                                Text("16:00", style = style.textStyle(38.sp))
+                                Text("do 30 aug  100%", style = lightText(13.sp, Color.White, FontWeight.Normal))
+                            }
                         }
                     }
                 }

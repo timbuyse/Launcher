@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -290,11 +292,20 @@ private fun IconShapesPage(settings: LauncherSettings) {
                 .padding(horizontal = 24.dp, vertical = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier.size(44.dp).clip(iconShapeFor(index)).background(Color.White),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(Modifier.size(18.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFF05303F)))
+            if (index == ICON_SHAPE_OUTLINE) {
+                Box(
+                    Modifier.size(44.dp).border(2.dp, Color.White, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(16.dp).border(2.dp, Color.White, RoundedCornerShape(5.dp)))
+                }
+            } else {
+                Box(
+                    Modifier.size(44.dp).clip(iconShapeFor(index)).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(18.dp).clip(RoundedCornerShape(5.dp)).background(Color(0xFF05303F)))
+                }
             }
             Spacer(Modifier.width(24.dp))
             Text(name, style = lightText(20.sp, Ink), modifier = Modifier.weight(1f))

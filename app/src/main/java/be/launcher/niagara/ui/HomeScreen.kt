@@ -98,6 +98,9 @@ fun HomeScreen(
     val time = now.format(DateTimeFormatter.ofPattern("H:mm", locale))
     val date = now.format(DateTimeFormatter.ofPattern("EEE, d MMM", locale))
         .replaceFirstChar { it.uppercase(locale) }
+    val weekday = now.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, locale)
+        .replace(".", "").take(2).uppercase(locale)
+    val shortDate = now.format(DateTimeFormatter.ofPattern("d MMM", locale)).replace(".", "").uppercase(locale)
     val dateLine = if (settings.showBattery && battery != null) "$date   $battery%" else date
 
     val counts = NotificationHub.counts
@@ -141,8 +144,19 @@ fun HomeScreen(
                 .padding(start = 32.dp, end = 64.dp, bottom = 24.dp),
         ) {
             Spacer(Modifier.height(topGap))
-            Text(text = time, style = ClockStyle.fromId(settings.clockStyle).textStyle(56.sp))
-            Text(text = dateLine, style = lightText(15.sp, SubtleText, FontWeight.Normal))
+            val clockStyle = ClockStyle.fromId(settings.clockStyle)
+            if (clockStyle.isOutline) {
+                OutlineClock(
+                    weekday = weekday,
+                    time = time,
+                    date = shortDate,
+                    battery = if (settings.showBattery && battery != null) "$battery%" else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Text(text = time, style = clockStyle.textStyle(56.sp))
+                Text(text = dateLine, style = lightText(15.sp, SubtleText, FontWeight.Normal))
+            }
 
             Column(
                 Modifier.fillMaxWidth().padding(top = 12.dp),
