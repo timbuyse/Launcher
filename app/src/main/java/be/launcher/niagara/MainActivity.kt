@@ -304,6 +304,7 @@ class MainActivity : ComponentActivity() {
                                 open = false
                             },
                             onAppMenu = { sheetApp = it },
+                            focusLetter = activeLetter,
                         )
                     }
 

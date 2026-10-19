@@ -1,5 +1,7 @@
 package be.launcher.niagara.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +44,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -106,8 +110,20 @@ fun AppDrawer(
     showIcons: Boolean,
     onLaunch: (AppEntry) -> Unit,
     onAppMenu: (AppEntry) -> Unit,
+    focusLetter: Char? = null,
 ) {
     val buzz = rememberHaptics()
+
+    // Tijdens het slepen over de letterbalk tonen we kort alleen de eerste apps van die letter.
+    // Laat je los, dan komt de hele lijst op die plek terug.
+    val focusRows = remember(rows, focusLetter) { focusGroup(rows, focusLetter) }
+    var shownRows by remember { mutableStateOf<List<DrawerRow>?>(null) }
+    SideEffect { if (focusRows != null) shownRows = focusRows }
+    val focusAlpha by animateFloatAsState(
+        targetValue = if (focusRows != null) 1f else 0f,
+        animationSpec = tween(durationMillis = 140),
+        label = "letterFocus",
+    )
     var searchOpen by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(searchOpen) { if (searchOpen) focusRequester.requestFocus() }
@@ -125,7 +141,8 @@ fun AppDrawer(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .graphicsLayer { alpha = 1f - focusAlpha },
             ) {
                 items(
                     rows,
@@ -136,46 +153,7 @@ fun AppDrawer(
                         }
                     },
                 ) { row ->
-                    when (row) {
-                        is DrawerRow.Header -> Text(
-                            text = row.letter.toString(),
-                            style = lightText(17.sp, SubtleText, FontWeight.Normal),
-                            modifier = Modifier.padding(start = 32.dp, top = 22.dp, bottom = 4.dp),
-                        )
-
-                        is DrawerRow.App -> {
-                            val app = row.app
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .combinedClickable(
-                                        onClick = { onLaunch(app) },
-                                        onLongClick = {
-                                            buzz(HapticFeedbackType.LongPress)
-                                            onAppMenu(app)
-                                        },
-                                    )
-                                    .padding(start = 32.dp, end = 72.dp, top = 8.dp, bottom = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                if (showIcons) {
-                                    AppIcon(app, 40.dp)
-                                    Spacer(Modifier.width(20.dp))
-                                }
-                                Text(
-                                    text = app.label,
-                                    style = lightText(20.sp, weight = FontWeight.Normal),
-                                    maxLines = 1,
-                                    modifier = Modifier.weight(1f, fill = false),
-                                )
-                                val count = NotificationHub.counts[app.packageName] ?: 0
-                                if (count > 0) {
-                                    Spacer(Modifier.width(12.dp))
-                                    NotificationBadge(count)
-                                }
-                            }
-                        }
-                    }
+                    DrawerRowView(row, showIcons, onLaunch, onAppMenu, buzz)
                 }
             }
 
@@ -207,6 +185,16 @@ fun AppDrawer(
             )
         }
 
+        val shown = shownRows
+        if (shown != null && focusAlpha > 0.01f) {
+            Column(Modifier.fillMaxSize().graphicsLayer { alpha = focusAlpha }) {
+                Spacer(Modifier.weight(0.28f))
+                Column(Modifier.weight(0.72f)) {
+                    shown.forEach { row -> DrawerRowView(row, showIcons, onLaunch, onAppMenu, buzz) }
+                }
+            }
+        }
+
         if (!searchOpen) {
             Box(
                 modifier = Modifier
@@ -219,6 +207,74 @@ fun AppDrawer(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Outlined.Search, contentDescription = "Zoeken", tint = Color.White)
+            }
+        }
+    }
+}
+
+/** Het kopje van de gekozen letter met de eerste [maxApps] apps eronder. */
+fun focusGroup(rows: List<DrawerRow>, letter: Char?, maxApps: Int = 6): List<DrawerRow>? {
+    if (letter == null || letter == STAR) return null
+    val start = rowIndexForLetter(rows, letter)
+    if (start < 0 || rows.getOrNull(start) !is DrawerRow.Header) return null
+    val group = ArrayList<DrawerRow>()
+    group += rows[start]
+    var apps = 0
+    for (i in start + 1 until rows.size) {
+        val row = rows[i]
+        if (row is DrawerRow.Header || apps >= maxApps) break
+        group += row
+        apps++
+    }
+    return group
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DrawerRowView(
+    row: DrawerRow,
+    showIcons: Boolean,
+    onLaunch: (AppEntry) -> Unit,
+    onAppMenu: (AppEntry) -> Unit,
+    buzz: (HapticFeedbackType) -> Unit,
+) {
+    when (row) {
+        is DrawerRow.Header -> Text(
+            text = row.letter.toString(),
+            style = lightText(17.sp, SubtleText, FontWeight.Normal),
+            modifier = Modifier.padding(start = 32.dp, top = 22.dp, bottom = 4.dp),
+        )
+
+        is DrawerRow.App -> {
+            val app = row.app
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        onClick = { onLaunch(app) },
+                        onLongClick = {
+                            buzz(HapticFeedbackType.LongPress)
+                            onAppMenu(app)
+                        },
+                    )
+                    .padding(start = 32.dp, end = 72.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (showIcons) {
+                    AppIcon(app, 40.dp)
+                    Spacer(Modifier.width(20.dp))
+                }
+                Text(
+                    text = app.label,
+                    style = lightText(20.sp, weight = FontWeight.Normal),
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                val count = NotificationHub.counts[app.packageName] ?: 0
+                if (count > 0) {
+                    Spacer(Modifier.width(12.dp))
+                    NotificationBadge(count)
+                }
             }
         }
     }
